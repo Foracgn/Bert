@@ -21,7 +21,7 @@ import argparse
 import random
 from tqdm import tqdm, trange
 import csv
-import glob 
+import glob
 import json
 import apex
 
@@ -35,9 +35,9 @@ from pytorch_pretrained_bert.modeling import BertForMultipleChoice
 from pytorch_pretrained_bert.optimization import BertAdam
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 
-logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
-                    datefmt = '%m/%d/%Y %H:%M:%S',
-                    level = logging.INFO)
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt='%m/%d/%Y %H:%M:%S',
+                    level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -51,6 +51,7 @@ class RaceExample(object):
     ending_0/1/2/3: option_0/1/2/3
     label: true answer
     '''
+
     def __init__(self,
                  race_id,
                  context_sentence,
@@ -59,7 +60,7 @@ class RaceExample(object):
                  ending_1,
                  ending_2,
                  ending_3,
-                 label = None):
+                 label=None):
         self.race_id = race_id
         self.context_sentence = context_sentence
         self.start_ending = start_ending
@@ -91,14 +92,13 @@ class RaceExample(object):
         return ", ".join(l)
 
 
-
 class InputFeatures(object):
     def __init__(self,
                  example_id,
                  choices_features,
                  label
 
-    ):
+                 ):
         self.example_id = example_id
         self.choices_features = [
             {
@@ -111,12 +111,11 @@ class InputFeatures(object):
         self.label = label
 
 
-
 ## paths is a list containing all paths
 def read_race_examples(paths):
     examples = []
     for path in paths:
-        filenames = glob.glob(path+"/*txt")
+        filenames = glob.glob(path + "/*txt")
         for filename in filenames:
             with open(filename, 'r', encoding='utf-8') as fpr:
                 data_raw = json.load(fpr)
@@ -128,18 +127,17 @@ def read_race_examples(paths):
                     options = data_raw['options'][i]
                     examples.append(
                         RaceExample(
-                            race_id = filename+'-'+str(i),
-                            context_sentence = article,
-                            start_ending = question,
+                            race_id=filename + '-' + str(i),
+                            context_sentence=article,
+                            start_ending=question,
 
-                            ending_0 = options[0],
-                            ending_1 = options[1],
-                            ending_2 = options[2],
-                            ending_3 = options[3],
-                            label = truth))
-                
-    return examples 
+                            ending_0=options[0],
+                            ending_1=options[1],
+                            ending_2=options[2],
+                            ending_3=options[3],
+                            label=truth))
 
+    return examples
 
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
@@ -181,9 +179,11 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
             max_option_len = max(max_option_len, len(start_ending_tokens + ending_tokens + others))
 
             # tokens = ["[CLS]"] + context_tokens_choice + ["[SEP]"] + ending_tokens + ["[SEP]"]
-            tokens = ["[CLS]"] + context_tokens_choice + ["[SEP]"] + start_ending_tokens + ["[SEP]"] + ending_tokens + ["[SEP]"] + others + ["[SEP]"]
+            tokens = ["[CLS]"] + context_tokens_choice + ["[SEP]"] + start_ending_tokens + ["[SEP]"] + ending_tokens + [
+                "[SEP]"] + others + ["[SEP]"]
 
-            segment_ids = [0] * (len(context_tokens_choice) + 2) + [1] * (len(start_ending_tokens + ending_tokens + others) + 3)
+            segment_ids = [0] * (len(context_tokens_choice) + 2) + [1] * (
+                        len(start_ending_tokens + ending_tokens + others) + 3)
             input_ids = tokenizer.convert_tokens_to_ids(tokens)
             input_mask = [1] * len(input_ids)
 
@@ -219,14 +219,15 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
         features.append(
             InputFeatures(
-                example_id = example.race_id,
-                choices_features = choices_features,
-                label = label
+                example_id=example.race_id,
+                choices_features=choices_features,
+                label=label
             )
         )
 
     logger.info("Max option seq len: " + str(max_option_len))
     return features
+
 
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
     """Truncates a sequence pair in place to the maximum length."""
@@ -242,9 +243,11 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
         # else:
         #     tokens_b.pop()
 
+
 def accuracy(out, labels):
     outputs = np.argmax(out, axis=1)
     return np.sum(outputs == labels)
+
 
 def select_field(features, field):
     return [
@@ -255,10 +258,12 @@ def select_field(features, field):
         for feature in features
     ]
 
+
 def warmup_linear(x, warmup=0.002):
     if x < warmup:
-        return x/warmup
+        return x / warmup
     return 1.0 - x
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -360,7 +365,7 @@ def main():
 
     if args.gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
-                            args.gradient_accumulation_steps))
+            args.gradient_accumulation_steps))
 
     args.train_batch_size = int(args.train_batch_size / args.gradient_accumulation_steps)
 
@@ -384,7 +389,7 @@ def main():
     # if args.do_train:
     #     train_dir = os.path.join(args.data_dir, 'train')
     #     train_examples = read_race_examples([train_dir+'/high', train_dir+'/middle'])
-        
+
     #     num_train_steps = int(
     #         len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
 
@@ -399,7 +404,8 @@ def main():
         try:
             from apex.parallel import DistributedDataParallel as DDP
         except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
+            raise ImportError(
+                "Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
 
         model = DDP(model)
     elif n_gpu > 1:
@@ -441,13 +447,12 @@ def main():
     #                          warmup=args.warmup_proportion,
     #                          t_total=t_total)
 
-        
     ## Load a trained model that you have fine-tuned
     # use this part if you want to load the trained model
     model_state_dict = torch.load(output_model_file)
     model = BertForMultipleChoice.from_pretrained(args.bert_model,
-        state_dict=model_state_dict,
-        num_choices=4)
+                                                  state_dict=model_state_dict,
+                                                  num_choices=4)
     model.to(device)
 
     if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
@@ -460,7 +465,7 @@ def main():
         eval_features = convert_examples_to_features(
             eval_examples, tokenizer, args.max_seq_length, True)
         logger.info("***** Running evaluation: test high *****")
-        logger.info("Epoch: {}".format(ep+1))
+        logger.info("Epoch: {}".format(ep + 1))
         logger.info("  Num examples = %d", len(eval_examples))
         logger.info("  Batch size = %d", args.eval_batch_size)
         all_input_ids = torch.tensor(select_field(eval_features, 'input_ids'), dtype=torch.long)
@@ -506,7 +511,6 @@ def main():
                 logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
 
-
         ## test middle
         eval_examples = read_race_examples(test_middle)
         eval_features = convert_examples_to_features(
@@ -550,12 +554,10 @@ def main():
         result = {'middle_eval_loss': eval_loss,
                   'middle_eval_accuracy': eval_accuracy}
 
-        
         with open(output_eval_file, "a+") as writer:
             for key in sorted(result.keys()):
                 logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
-
 
         ## all test
         eval_loss = (middle_eval_loss + high_eval_loss) / (middle_nb_eval_steps + high_nb_eval_steps)
@@ -568,8 +570,6 @@ def main():
             for key in sorted(result.keys()):
                 logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
-
-
 
 
 if __name__ == "__main__":
