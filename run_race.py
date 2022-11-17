@@ -33,14 +33,15 @@ class SinExample(object):
 
 
 class InputFeatures(object):
-    def __init__(self,
-                 example_id,
-                 ctx_feature,
-                 label
-
-                 ):
+    def __init__(self, example_id, ctx_feature, label):
         self.example_id = example_id
-        self.choices_features = ctx_feature
+        self.choices_features = [
+            {
+                'input_ids': ctx_feature[1],
+                'input_mask': ctx_feature[2],
+                'segment_ids': ctx_feature[3]
+            }
+        ]
         self.label = label
 
 
@@ -65,13 +66,16 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
     features = []
     for example_index, example in enumerate(examples):
         context_tokens = tokenizer.tokenize(example.ctx)
+        _truncate_seq_pair(context_tokens, max_seq_length - 1)
         tokens = ["[CLS]"] + context_tokens
-        _truncate_seq_pair(context_tokens, max_seq_length)
 
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
+
+        assert len(input_ids) == len(tokens)
+
         input_mask = [1] * len(input_ids)
         segments_id = [0] * (len(context_tokens) + 1)
-        ctx_feature = (tokens, input_ids, input_mask, segments_id)
+        ctx_feature = [tokens, input_ids, input_mask, segments_id]
 
         tails = [0] * (max_seq_length - len(input_ids))
         input_ids += tails
@@ -82,7 +86,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         assert len(input_mask) == max_seq_length
         assert len(segments_id) == max_seq_length
 
-        label = example.label
+        label = int(example.label)
 
         features.append(
             InputFeatures(
@@ -96,7 +100,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
 
 def _truncate_seq_pair(tokens, max_length):
-    while len(tokens) < max_length:
+    while len(tokens) > max_length:
         tokens.pop()
 
 
