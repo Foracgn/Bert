@@ -64,7 +64,7 @@ def read_race_examples(filename):
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
                                  is_training):
     features = []
-    for example_index, example in enumerate(examples):
+    for example_index, example in enumerate(tqdm(examples)):
         context_tokens = tokenizer.tokenize(example.ctx)
         _truncate_seq_pair(context_tokens, max_seq_length - 1)
         tokens = ["[CLS]"] + context_tokens
@@ -332,7 +332,7 @@ def main():
             tr_loss = 0
             nb_tr_examples, nb_tr_steps = 0, 0
             logger.info("Trianing Epoch: {}/{}".format(ep + 1, int(args.num_train_epochs)))
-            for step, batch in enumerate(train_dataloader):
+            for step, batch in enumerate(tqdm(train_dataloader)):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, label_ids = batch
                 loss = model(input_ids, segment_ids, input_mask, label_ids)
@@ -454,7 +454,7 @@ def main():
         model.eval()
         test_eval_loss, test_eval_accuracy = 0, 0
         test_nb_eval_steps, test_nb_eval_examples = 0, 0
-        for step, batch in enumerate(eval_dataloader):
+        for step, batch in enumerate(tqdm(eval_dataloader)):
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, label_ids = batch
 
