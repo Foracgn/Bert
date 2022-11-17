@@ -257,7 +257,7 @@ def main():
     model = BertForMultipleChoice.from_pretrained(args.bert_model,
                                                   cache_dir=PYTORCH_PRETRAINED_BERT_CACHE / 'distributed_{}'.format(
                                                       args.local_rank),
-                                                  num_choices=60)
+                                                  num_choices=1)
 
     model.to(device)
     if args.local_rank != -1:

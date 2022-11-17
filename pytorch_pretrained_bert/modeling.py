@@ -981,6 +981,7 @@ class BertForMultipleChoice(PreTrainedBertModel):
         logits = self.classifier(pooled_output)
         reshaped_logits = logits.view(-1, self.num_choices)
 
+
         if labels is not None:
             loss_fct = nn.MSELoss()
             loss = loss_fct(reshaped_logits, labels)
