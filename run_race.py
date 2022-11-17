@@ -73,7 +73,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         segments_id = [0] * (len(context_tokens) + 1)
         ctx_feature = (tokens, input_ids, input_mask, segments_id)
 
-        tails = [0] * (max_seq_length-len(input_ids))
+        tails = [0] * (max_seq_length - len(input_ids))
         input_ids += tails
         input_mask += tails
         segments_id += tails
@@ -243,8 +243,8 @@ def main():
     train_examples = None
     num_train_steps = None
     if args.do_train:
-        train_dir = os.path.join(args.data_dir, 'train')
-        train_examples = read_race_examples([train_dir + '/high', train_dir + '/middle'])
+        train_dir = os.path.join(args.data_dir, 'train.csv')
+        train_examples = read_race_examples(train_dir)
 
         num_train_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
@@ -362,10 +362,9 @@ def main():
 
             # evaluate on dev set
             if global_step % 1000 == 0:
-                dev_dir = os.path.join(args.data_dir, 'dev')
-                dev_set = [dev_dir + '/high', dev_dir + '/middle']
+                data_dir = os.path.join(args.data_dir, "train.csv")
 
-                eval_examples = read_race_examples(dev_set)
+                eval_examples = read_race_examples(data_dir)
                 eval_features = convert_examples_to_features(
                     eval_examples, tokenizer, args.max_seq_length, True)
                 logger.info("***** Running evaluation: Dev *****")
@@ -430,15 +429,13 @@ def main():
     # model.to(device)
 
     if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
-        test_dir = os.path.join(args.data_dir, 'test')
-        test_high = [test_dir + '/high']
-        test_middle = [test_dir + '/middle']
+        test_path = os.path.join(args.data_dir, 'testA.csv')
 
         # test high
-        eval_examples = read_race_examples(test_high)
+        eval_examples = read_race_examples(test_path)
         eval_features = convert_examples_to_features(
             eval_examples, tokenizer, args.max_seq_length, True)
-        logger.info("***** Running evaluation: test high *****")
+        logger.info("***** Running evaluation: test data *****")
         logger.info("  Num examples = %d", len(eval_examples))
         logger.info("  Batch size = %d", args.eval_batch_size)
         all_input_ids = torch.tensor(select_field(eval_features, 'input_ids'), dtype=torch.long)
@@ -451,8 +448,8 @@ def main():
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
         model.eval()
-        high_eval_loss, high_eval_accuracy = 0, 0
-        high_nb_eval_steps, high_nb_eval_examples = 0, 0
+        test_eval_loss, test_eval_accuracy = 0, 0
+        test_nb_eval_steps, test_nb_eval_examples = 0, 0
         for step, batch in enumerate(eval_dataloader):
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids, label_ids = batch
@@ -465,14 +462,14 @@ def main():
             label_ids = label_ids.to('cpu').numpy()
             tmp_eval_accuracy = accuracy(logits, label_ids)
 
-            high_eval_loss += tmp_eval_loss.mean().item()
-            high_eval_accuracy += tmp_eval_accuracy
+            test_eval_loss += tmp_eval_loss.mean().item()
+            test_eval_accuracy += tmp_eval_accuracy
 
-            high_nb_eval_examples += input_ids.size(0)
-            high_nb_eval_steps += 1
+            test_nb_eval_examples += input_ids.size(0)
+            test_nb_eval_steps += 1
 
-        eval_loss = high_eval_loss / high_nb_eval_steps
-        eval_accuracy = high_eval_accuracy / high_nb_eval_examples
+        eval_loss = test_eval_loss / test_nb_eval_steps
+        eval_accuracy = test_eval_accuracy / test_nb_eval_examples
 
         result = {'high_eval_loss': eval_loss,
                   'high_eval_accuracy': eval_accuracy}
@@ -480,66 +477,6 @@ def main():
         output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
         with open(output_eval_file, "a+") as writer:
             logger.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                logger.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
-
-        # test middle
-        eval_examples = read_race_examples(test_middle)
-        eval_features = convert_examples_to_features(
-            eval_examples, tokenizer, args.max_seq_length, True)
-        logger.info("***** Running evaluation: test middle *****")
-        logger.info("  Num examples = %d", len(eval_examples))
-        logger.info("  Batch size = %d", args.eval_batch_size)
-        all_input_ids = torch.tensor(select_field(eval_features, 'input_ids'), dtype=torch.long)
-        all_input_mask = torch.tensor(select_field(eval_features, 'input_mask'), dtype=torch.long)
-        all_segment_ids = torch.tensor(select_field(eval_features, 'segment_ids'), dtype=torch.long)
-        all_label = torch.tensor([f.label for f in eval_features], dtype=torch.long)
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label)
-        # Run prediction for full data
-        eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
-
-        model.eval()
-        middle_eval_loss, middle_eval_accuracy = 0, 0
-        middle_nb_eval_steps, middle_nb_eval_examples = 0, 0
-        for step, batch in enumerate(eval_dataloader):
-            batch = tuple(t.to(device) for t in batch)
-            input_ids, input_mask, segment_ids, label_ids = batch
-
-            with torch.no_grad():
-                tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
-                logits = model(input_ids, segment_ids, input_mask)
-
-            logits = logits.detach().cpu().numpy()
-            label_ids = label_ids.to('cpu').numpy()
-            tmp_eval_accuracy = accuracy(logits, label_ids)
-
-            middle_eval_loss += tmp_eval_loss.mean().item()
-            middle_eval_accuracy += tmp_eval_accuracy
-
-            middle_nb_eval_examples += input_ids.size(0)
-            middle_nb_eval_steps += 1
-
-        eval_loss = middle_eval_loss / middle_nb_eval_steps
-        eval_accuracy = middle_eval_accuracy / middle_nb_eval_examples
-
-        result = {'middle_eval_loss': eval_loss,
-                  'middle_eval_accuracy': eval_accuracy}
-
-        with open(output_eval_file, "a+") as writer:
-            for key in sorted(result.keys()):
-                logger.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
-
-        # all test
-        eval_loss = (middle_eval_loss + high_eval_loss) / (middle_nb_eval_steps + high_nb_eval_steps)
-        eval_accuracy = (middle_eval_accuracy + high_eval_accuracy) / (middle_nb_eval_examples + high_nb_eval_examples)
-
-        result = {'overall_eval_loss': eval_loss,
-                  'overall_eval_accuracy': eval_accuracy}
-
-        with open(output_eval_file, "a+") as writer:
             for key in sorted(result.keys()):
                 logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
