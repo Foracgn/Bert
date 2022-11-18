@@ -49,15 +49,16 @@ class InputFeatures(object):
 def read_race_examples(filename):
     examples = []
     with open(filename, 'r', encoding='utf-8') as f:
-        for row in csv.DictReader(f, skipinitialspace=True):
+        result = json.load(f)
+        for row in result:
             examples.append(
                 SinExample(
                     case_id=row['id'],
                     ctx=row['fact'],
                     label=row['label']
+
                 )
             )
-
     return examples
 
 
@@ -133,7 +134,7 @@ def main():
                         default=None,
                         type=str,
                         required=True,
-                        help="The input data dir. Should contain the .csv files (or other data files) for the task.")
+                        help="The input data dir. Should contain the .json files (or other data files) for the task.")
     parser.add_argument("--bert_model", default=None, type=str, required=True,
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                              "bert-large-uncased, bert-base-cased, bert-base-multilingual, bert-base-chinese.")
@@ -247,7 +248,7 @@ def main():
     train_examples = None
     num_train_steps = None
     if args.do_train:
-        train_dir = os.path.join(args.data_dir, 'train.csv')
+        train_dir = os.path.join(args.data_dir, 'train.json')
         train_examples = read_race_examples(train_dir)
 
         num_train_steps = int(
@@ -366,7 +367,7 @@ def main():
 
             # evaluate on dev set
             if global_step % 1000 == 0:
-                data_dir = os.path.join(args.data_dir, "train.csv")
+                data_dir = os.path.join(args.data_dir, "train.json")
 
                 eval_examples = read_race_examples(data_dir)
                 eval_features = convert_examples_to_features(
@@ -433,7 +434,7 @@ def main():
     # model.to(device)
 
     if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
-        test_path = os.path.join(args.data_dir, 'testA.csv')
+        test_path = os.path.join(args.data_dir, 'testA.json')
 
         # test high
         eval_examples = read_race_examples(test_path)
