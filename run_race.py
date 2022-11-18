@@ -48,7 +48,7 @@ class InputFeatures(object):
 # paths is a list containing all paths
 def read_race_examples(filename):
     examples = []
-    with open(filename, 'rb', encoding='utf-8') as f:
+    with open(filename, 'rb') as f:
         for row in csv.DictReader(f, skipinitialspace=True):
             examples.append(
                 SinExample(
