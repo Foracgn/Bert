@@ -19,7 +19,9 @@ from pytorch_pretrained_bert.modeling import BertForMultipleChoice
 from pytorch_pretrained_bert.optimization import BertAdam
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+logging.basicConfig(filename="logs",
+                    filemode='w',
+                    format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
