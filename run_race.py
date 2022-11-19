@@ -429,7 +429,7 @@ def main():
         output_file = os.path.join(args.output_dir, "results.txt")
         with open(output_file, "a+") as writer:
             for i in range(len(results)):
-                writer.write("%d,%s" % (i, results[i]))
+                writer.write("%d,%s\n" % (i, results[i]))
 
 
 if __name__ == "__main__":

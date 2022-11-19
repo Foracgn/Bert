@@ -8,7 +8,7 @@ python run_race.py \
 --train_batch_size=32 \
 --eval_batch_size=1 \
 --learning_rate=1e-5 \
---num_train_epochs=3 \
+--num_train_epochs=1 \
 --gradient_accumulation_steps=8 \
 --loss_scale=128 && /root/shutdown.sh
 
