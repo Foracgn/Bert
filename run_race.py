@@ -48,7 +48,7 @@ class InputFeatures(object):
 
 
 # paths is a list containing all paths
-def read_race_examples(filename):
+def read_race_examples(filename, train=True):
     examples = []
     with open(filename, 'r', encoding='utf-8') as f:
         result = json.load(f)
@@ -57,8 +57,7 @@ def read_race_examples(filename):
                 SinExample(
                     case_id=row['id'],
                     ctx=row['fact'],
-                    label=row['label']
-
+                    label=((train is True) and row['label'] or None)
                 )
             )
     return examples
@@ -439,7 +438,7 @@ def main():
         test_path = os.path.join(args.data_dir, 'testA.json')
 
         # test high
-        eval_examples = read_race_examples(test_path)
+        eval_examples = read_race_examples(test_path, False)
         eval_features = convert_examples_to_features(
             eval_examples, tokenizer, args.max_seq_length, True)
         logger.info("***** Running evaluation: test data *****")
