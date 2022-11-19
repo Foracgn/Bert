@@ -87,10 +87,10 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(segments_id) == max_seq_length
-        if(is_training):
+        if (is_training):
             label = int(example.label)
         else:
-            label=None
+            label = None
 
         features.append(
             InputFeatures(
@@ -373,61 +373,6 @@ def main():
                 if global_step % 100 == 0:
                     logger.info("Training loss: {}, global step: {}".format(tr_loss / nb_tr_steps, global_step))
 
-            # # evaluate on dev set
-            # if global_step % 1000 == 0:
-            #     data_dir = os.path.join(args.data_dir, "train.json")
-
-            #     eval_examples = read_race_examples(data_dir)
-            #     eval_features = convert_examples_to_features(
-            #         eval_examples, tokenizer, args.max_seq_length, True)
-            #     logger.info("***** Running evaluation: Dev *****")
-            #     logger.info("  Num examples = %d", len(eval_examples))
-            #     logger.info("  Batch size = %d", args.eval_batch_size)
-            #     all_input_ids = torch.tensor(select_field(eval_features, 'input_ids'), dtype=torch.long)
-            #     all_input_mask = torch.tensor(select_field(eval_features, 'input_mask'), dtype=torch.long)
-            #     all_segment_ids = torch.tensor(select_field(eval_features, 'segment_ids'), dtype=torch.long)
-            #     all_label = torch.tensor([f.label for f in eval_features], dtype=torch.long)
-            #     eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label)
-            #     # Run prediction for full data
-            #     eval_sampler = SequentialSampler(eval_data)
-            #     eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
-
-            #     model.eval()
-            #     eval_loss, eval_accuracy = 0, 0
-            #     nb_eval_steps, nb_eval_examples = 0, 0
-            #     for step, batch in enumerate(eval_dataloader):
-            #         batch = tuple(t.to(device) for t in batch)
-            #         input_ids, input_mask, segment_ids, label_ids = batch
-
-            #         with torch.no_grad():
-            #             tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
-            #             logits = model(input_ids, segment_ids, input_mask)
-
-            #         logits = logits.detach().cpu().numpy()
-            #         label_ids = label_ids.to('cpu').numpy()
-            #         tmp_eval_accuracy = accuracy(logits, label_ids)
-
-            #         eval_loss += tmp_eval_loss.mean().item()
-            #         eval_accuracy += tmp_eval_accuracy
-
-            #         nb_eval_examples += input_ids.size(0)
-            #         nb_eval_steps += 1
-
-            #     eval_loss = eval_loss / nb_eval_steps
-            #     eval_accuracy = eval_accuracy / nb_eval_examples
-
-            #     result = {'dev_eval_loss': eval_loss,
-            #               'dev_eval_accuracy': eval_accuracy,
-            #               'global_step': global_step,
-            #               'loss': tr_loss / nb_tr_steps}
-
-            #     output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-            #     with open(output_eval_file, "a+") as writer:
-            #         logger.info("***** Dev results *****")
-            #         for key in sorted(result.keys()):
-            #             logger.info("  %s = %s", key, str(result[key]))
-            #             writer.write("%s = %s\n" % (key, str(result[key])))
-
         # Save a trained model
         model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
         output_model_file = os.path.join(args.output_dir, "pytorch_model.bin")
@@ -438,8 +383,8 @@ def main():
     output_model_file = os.path.join(args.output_dir, "pytorch_model.bin")
     model_state_dict = torch.load(output_model_file)
     model = BertForMultipleChoice.from_pretrained(args.bert_model,
-        state_dict=model_state_dict,
-        num_choices=1)
+                                                  state_dict=model_state_dict,
+                                                  num_choices=1)
     model.to(device)
 
     if args.do_predict and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
@@ -454,7 +399,7 @@ def main():
         all_input_ids = torch.tensor(select_field(eval_features, 'input_ids'), dtype=torch.long)
         all_input_mask = torch.tensor(select_field(eval_features, 'input_mask'), dtype=torch.long)
         all_segment_ids = torch.tensor(select_field(eval_features, 'segment_ids'), dtype=torch.long)
-        #all_label = torch.tensor([f.label for f in eval_features], dtype=torch.long)
+        # all_label = torch.tensor([f.label for f in eval_features], dtype=torch.long)
         eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids)
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
@@ -464,44 +409,28 @@ def main():
         # test_eval_loss, test_eval_accuracy = 0, 0
         # test_nb_eval_steps, test_nb_eval_examples = 0, 0
 
-        results=[]
+        results = []
 
         for step, batch in enumerate(tqdm(eval_dataloader)):
             batch = tuple(t.to(device) for t in batch)
             input_ids, input_mask, segment_ids = batch
 
             with torch.no_grad():
-                #tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
+                # tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
                 logits = model(input_ids, segment_ids, input_mask)
 
             logits = logits.detach().cpu().numpy().tolist()
             results.append(logits[0])
-            #label_ids = label_ids.to('cpu').numpy()
-            #tmp_eval_accuracy = accuracy(logits, label_ids)
-
-            #test_eval_loss += tmp_eval_loss.mean().item()
-            #test_eval_accuracy += tmp_eval_accuracy
-
-            # test_nb_eval_examples += input_ids.size(0)
-            # test_nb_eval_steps += 1
-
-        # eval_loss = test_eval_loss / test_nb_eval_steps
-        # eval_accuracy = test_eval_accuracy / test_nb_eval_examples
-
-        # result = {'high_eval_loss': eval_loss,
-        #           'high_eval_accuracy': eval_accuracy}
-
-        # output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-        # with open(output_eval_file, "a+") as writer:
-        #     logger.info("***** Eval results *****")
-        #     for key in sorted(result.keys()):
-        #         logger.info("  %s = %s", key, str(result[key]))
-        #         writer.write("%s = %s\n" % (key, str(result[key])))
 
         print(results[:50])
         '''
         最终结果为results
         '''
+        output_file = os.path.join(args.output_dir, "results.txt")
+        with open(output_file, "a+") as writer:
+            for i in range(len(results)):
+                writer.write("%d,%s" % (i, results[i]))
+
 
 if __name__ == "__main__":
     main()
