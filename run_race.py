@@ -8,6 +8,7 @@ from tqdm import tqdm, trange
 import csv
 import glob
 import json
+import time
 
 import numpy as np
 import torch
@@ -19,7 +20,8 @@ from pytorch_pretrained_bert.modeling import BertForMultipleChoice
 from pytorch_pretrained_bert.optimization import BertAdam
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 
-logging.basicConfig(filename="logs",
+logging.basicConfig(filename="../logs/log_{}.txt".format(
+                    time.strftime("%m%d%Y_%H%M%S"),time.localtime()),
                     filemode='w',
                     format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
@@ -55,51 +57,73 @@ def read_race_examples(filename, train=True):
         for row in result:
             examples.append(
                 SinExample(
-                    case_id=row['id'],
+                    case_id=int(row['id'][3:]),
                     ctx=row['fact'],
                     label=((train is True) and row['label'] or None)
                 )
             )
     return examples
 
+# 分割文本，每段长度为max_seq_length，重叠部分为overlap_len
+# 返回为一个list
+def split_text(tokens:list,max_seq_lenth:int,overlap_len:int):
+    split_tokens=[]
+    l=len(tokens)
+    i=0
+    while(i<l):
+        split_tokens.append(tokens[i:min(i+max_seq_lenth,l)])
+        i+=(max_seq_lenth-overlap_len)
+    return split_tokens
 
 def convert_examples_to_features(examples, tokenizer, max_seq_length,
                                  is_training=True):
     features = []
     for example_index, example in enumerate(tqdm(examples)):
         context_tokens = tokenizer.tokenize(example.ctx)
-        _truncate_seq_pair(context_tokens, max_seq_length - 1)
-        tokens = ["[CLS]"] + context_tokens
+        #_truncate_seq_pair(context_tokens, max_seq_length - 1)
+        for idx,each in enumerate(split_text(context_tokens,max_seq_length-1, max_seq_length//4)):
+            tokens = ["[CLS]"] + each
 
-        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+            input_ids = tokenizer.convert_tokens_to_ids(tokens)
 
-        assert len(input_ids) == len(tokens)
+            assert len(input_ids) == len(tokens)
 
-        input_mask = [1] * len(input_ids)
-        segments_id = [0] * (len(context_tokens) + 1)
-        ctx_feature = [tokens, input_ids, input_mask, segments_id]
+            input_mask = [1] * len(input_ids)
+            segments_id = [0] * (len(each) + 1)
+            ctx_feature = [tokens, input_ids, input_mask, segments_id]
 
-        tails = [0] * (max_seq_length - len(input_ids))
-        input_ids += tails
-        input_mask += tails
-        segments_id += tails
+            # print("len(tokens)=",len(tokens))
+            # print("len(segments_id)=",len(segments_id))
+            # print("max_seq_length=",max_seq_length)
 
-        assert len(input_ids) == max_seq_length
-        assert len(input_mask) == max_seq_length
-        assert len(segments_id) == max_seq_length
-        if (is_training):
-            label = int(example.label)
-        else:
-            label = None
+            tails = [0] * (max_seq_length - len(input_ids))
+            input_ids += tails
+            input_mask += tails
+            segments_id += tails
 
-        features.append(
-            InputFeatures(
-                example_id=example.case_id,
-                ctx_feature=ctx_feature,
-                label=label
+            assert len(input_ids) == max_seq_length
+            assert len(input_mask) == max_seq_length
+            assert len(segments_id) == max_seq_length
+            if (is_training):
+                label = int(example.label)
+            else:
+                label = None
+
+            # if(idx==0 and example_index==0):
+
+            #     print("len(tokens)=",len(tokens))
+            #     print("input_ids:",input_ids)
+            #     print("input_mask:",input_mask)
+            #     print("segments_id:",segments_id)
+
+            features.append(
+                InputFeatures(
+                    example_id=example.case_id,
+                    ctx_feature=ctx_feature,
+                    label=label
+                )
             )
-        )
-
+    print("len(features)=",len(features))
     return features
 
 
@@ -257,7 +281,6 @@ def main():
     if args.do_train:
         train_dir = os.path.join(args.data_dir, 'train.json')
         train_examples = read_race_examples(train_dir)
-
         num_train_steps = int(
             len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps * args.num_train_epochs)
 
@@ -330,6 +353,7 @@ def main():
         all_segment_ids = torch.tensor(select_field(train_features, 'segment_ids'), dtype=torch.long)
         all_label = torch.tensor([f.label for f in train_features], dtype=torch.long)
         train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label)
+        all_feature_ids = torch.tensor([each.example_id for each in train_features], dtype=torch.long)
         if args.local_rank == -1:
             train_sampler = RandomSampler(train_data)
         else:
@@ -399,8 +423,9 @@ def main():
         all_input_ids = torch.tensor(select_field(eval_features, 'input_ids'), dtype=torch.long)
         all_input_mask = torch.tensor(select_field(eval_features, 'input_mask'), dtype=torch.long)
         all_segment_ids = torch.tensor(select_field(eval_features, 'segment_ids'), dtype=torch.long)
+        all_feature_ids = torch.tensor([each.example_id for each in eval_features], dtype=torch.long)
         # all_label = torch.tensor([f.label for f in eval_features], dtype=torch.long)
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids)
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids,all_feature_ids)
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
@@ -409,27 +434,36 @@ def main():
         # test_eval_loss, test_eval_accuracy = 0, 0
         # test_nb_eval_steps, test_nb_eval_examples = 0, 0
 
-        results = []
-
+        results = {}
+        count={}
+        print(len(eval_dataloader))
         for step, batch in enumerate(tqdm(eval_dataloader)):
             batch = tuple(t.to(device) for t in batch)
-            input_ids, input_mask, segment_ids = batch
-
+            input_ids, input_mask, segment_ids,feature_id = batch
+            feature_id=feature_id.detach().cpu().numpy().tolist()
+            #print(feature_id)
             with torch.no_grad():
                 # tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
                 logits = model(input_ids, segment_ids, input_mask)
-
             logits = logits.detach().cpu().numpy().tolist()
-            results.append(logits[0])
+            for logit,f_id in zip(logits,feature_id):
+                if(not f_id in results):
+                    results[f_id]=0.0
+                    count[f_id]=0
+                results[f_id]+=logit[0]
+                count[f_id]+=1
 
-        print(results[:50])
+
+        print(len(results))
         '''
         最终结果为results
         '''
-        output_file = os.path.join(args.output_dir, "results.txt")
-        with open(output_file, "a+") as writer:
-            for i in range(len(results)):
-                writer.write("%d,%s\n" % (i, results[i]))
+        output_file = os.path.join(args.output_dir, "{}_results.txt".format(
+            time.strftime("%m%d%Y_%H%M%S"),time.localtime()
+        ))
+        with open(output_file, "w") as writer:
+            for key,value in results.items():
+                writer.write("%s,%s\n" % ("id_"+str(key), value/count[key]))
 
 
 if __name__ == "__main__":

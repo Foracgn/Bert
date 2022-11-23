@@ -6,7 +6,7 @@ python run_race.py \
 --do_eval --do_lower_case \
 --do_predict \
 --train_batch_size=32 \
---eval_batch_size=1 \
+--eval_batch_size=4 \
 --learning_rate=1e-5 \
 --num_train_epochs=1 \
 --gradient_accumulation_steps=8 \
